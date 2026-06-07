@@ -1,5 +1,7 @@
 import pygame
 
+# boxed content
+
 class Panel:
     def __init__(self, rect, title=None, font=None, bg_color=(22, 22, 22), border_color=(120, 120, 120), title_color=(230, 230, 230)):
         self.rect = pygame.Rect(rect)

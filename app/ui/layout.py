@@ -1,4 +1,5 @@
 import pygame
+from ui.theme import THEME
 
 
 HEADER = pygame.Rect(0, 0, 800, 50)
@@ -8,12 +9,12 @@ FOOTER = pygame.Rect(0, 440, 800, 40)
 
 def draw_layout(surface):
 
-    pygame.draw.rect(surface, (40,40,40), HEADER)
-    pygame.draw.rect(surface, (30,30,30), NAV)
-    pygame.draw.rect(surface, (20,20,20), MAIN)
-    pygame.draw.rect(surface, (40,40,40), FOOTER)
+    pygame.draw.rect(surface, THEME["header"], HEADER)
+    pygame.draw.rect(surface, THEME["nav"], NAV)
+    pygame.draw.rect(surface, THEME["primary"], MAIN)
+    pygame.draw.rect(surface, THEME["header"], FOOTER)
 
-    pygame.draw.rect(surface, "#6A0505", HEADER, 1)
-    pygame.draw.rect(surface, "#6A0505", NAV, 1)
-    pygame.draw.rect(surface, "#6A0505", MAIN, 1)
-    pygame.draw.rect(surface, "#6A0505", FOOTER, 1)
+    pygame.draw.rect(surface, THEME["outline"], HEADER, 1)
+    pygame.draw.rect(surface, THEME["outline"], NAV, 1)
+    pygame.draw.rect(surface, THEME["outline"], MAIN, 1)
+    pygame.draw.rect(surface, THEME["outline"], FOOTER, 1)

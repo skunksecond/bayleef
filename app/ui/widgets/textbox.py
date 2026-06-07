@@ -1,5 +1,5 @@
 import pygame
-
+# placeholder text, keyboard handling, cursor blinking, support for no mouse
 class TextBox:
     def __init__(
         self,

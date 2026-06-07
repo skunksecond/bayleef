@@ -1,5 +1,7 @@
 import pygame
 
+# selectable items, scroll tracking, callback on enter
+
 class ListBox:
     def __init__(
         self,

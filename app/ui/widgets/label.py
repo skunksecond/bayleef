@@ -1,5 +1,7 @@
 import pygame
 
+# used for static text rendering
+
 class Label:
     def __init__(self, text, pos, font=None, color=(255, 255, 255), align="topleft"):
         self.text = text

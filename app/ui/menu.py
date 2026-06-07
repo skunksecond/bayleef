@@ -3,6 +3,7 @@ from ui.screen import Screen
 from ui.layout import *
 from ui.widgets import Button
 
+
 class MainMenu(Screen):
     def __init__(self):
         self.buttons = []
