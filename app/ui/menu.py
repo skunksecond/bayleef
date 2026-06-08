@@ -3,6 +3,7 @@ import pygame
 from ui.screen import Screen
 from ui.layout import *
 from ui.widgets import Button
+from eontimer import *
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -28,7 +29,12 @@ class MainMenu(Screen):
                 button_width,
                 button_height,
             )
+
             button = Button(rect, label)
+
+            if label == "EonTimer":
+                button.callback = start_eontimer
+            
             self.buttons.append(button)
 
         if self.buttons:
@@ -41,7 +47,7 @@ class MainMenu(Screen):
         font = pygame.font.SysFont(None, 36)
         header_img = pygame.image.load(script_dir + "/logo/" + THEME["logo"])
         header_img_resized = pygame.transform.scale(header_img, (162, 50))
-        surface.blit(header_img_resized, (HEADER.left + 20, 0))
+        surface.blit(header_img_resized, (HEADER.left + 20, 1))
 
         for button in self.buttons:
             button.draw(surface)
@@ -70,3 +76,5 @@ class MainMenu(Screen):
 
     def _activate_button(self, button):
         print(f"Selected: {button.text}")
+        if button.callback:
+            button.callback()

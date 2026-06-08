@@ -5,12 +5,11 @@ from ui.layout import *
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
-# initialize pygame
 pygame.init()
 WIDTH = 800
 HEIGHT =  480 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("PokeHelper")
+pygame.display.set_caption("Bayleef")
 
 clock = pygame.time.Clock()
 
