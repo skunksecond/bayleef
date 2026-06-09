@@ -11,7 +11,7 @@ There isn't really anything right now but if you'd like to check out what there 
 
 ## Planned Features
 
-* The ability to modify saves, run an entralinked server, run eontimer, and have an offline pokedex all on the go, complete with custom UIs suited for the 
+* The ability to modify saves, run an entralinked server, run eontimer, and have an offline pokedex all on the go, complete with custom UIs suited for the device.
 * A keyboard and a PSP joystick for mouse controls, as well as a touch screen
 * A good battery life
 * Be about as small or smaller than a DSi.
