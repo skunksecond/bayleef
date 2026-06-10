@@ -15,11 +15,15 @@ class MainMenu(Screen):
         self.selected_index = 0
         self._build_buttons()
 
+# builds buttons, button callbacks have to be defined here
+# uses indexing system and more buttons can easily be added
     def _build_buttons(self):
-        labels = ["Pokedex", "Entralinked", "PKHex", "EonTimer", "Settings"]
+        labels = ["Pokedex", "Entralinked", "PKMDS", "EonTimer", "Settings"]
         button_width = 180
         button_height = 56
         spacing = 18
+
+        # calculate the initial coordinates and total height
         total_height = len(labels) * button_height + (len(labels) - 1) * spacing
         start_x = NAV.x + (NAV.width - button_width) // 2
         start_y = NAV.y + (NAV.height - total_height) // 2

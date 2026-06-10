@@ -18,4 +18,4 @@ There isn't really anything right now but if you'd like to check out what there 
 
 ## Credits
 
-DasAmpharos for [EonTimer](https://github.com/DasAmpharos/EonTimer), kuroppoi for [entralinked](https://github.com/kuroppoi/entralinked), and kwsch for [PKHeX](https://github.com/kwsch/PKHeX)
+DasAmpharos for [EonTimer](https://github.com/DasAmpharos/EonTimer), kuroppoi for [entralinked](https://github.com/kuroppoi/entralinked), kwsch for [PKHeX](https://github.com/kwsch/PKHeX), and codemonkey85 for [PKMDS](https://github.com/codemonkey85/PKMDS-Blazor).
