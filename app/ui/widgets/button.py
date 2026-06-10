@@ -1,4 +1,5 @@
 import pygame
+from ui.theme import THEME
 
 class Button:
     def __init__(
@@ -7,9 +8,9 @@ class Button:
         text,
         callback=None,
         font=None,
-        bg_color=(50, 50, 50),
-        fg_color=(255, 255, 255),
-        selected_color=(100, 100, 255),
+        bg_color=THEME["button_bg"],
+        fg_color=THEME["button_fg"],
+        selected_color=THEME["button_select"],
         padding_x=16,
         padding_y=12,
     ):

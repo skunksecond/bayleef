@@ -13,7 +13,7 @@ body,
 body {
   margin: 0;
   overscroll-behavior: none;
-  background: linear-gradient(135deg, #0f2740 0%, #275c8a 50%, #4f8cc7 100%);
+  background: linear-gradient(135deg, #0f401a 0%, #278a43 50%, #51c74f 100%);;
   color: #f6fbff;
 }
 
