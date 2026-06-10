@@ -20,5 +20,5 @@ def draw_layout(surface):
     pygame.draw.rect(surface, THEME["outline"], MAIN, 1)
     pygame.draw.rect(surface, THEME["outline"], FOOTER, 1)
 
-    clock_rect = pygame.Rect(MAIN.right - 118, MAIN.bottom - 148, 92, 92)
+    clock_rect = pygame.Rect(FOOTER.right - 44, FOOTER.top + 2, 34, 34)
     draw_clock(surface, rect=clock_rect)

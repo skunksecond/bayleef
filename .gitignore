@@ -1,4 +1,6 @@
 .venv/
-__pychache__/
+__pycache__/
 .vscode/
 *.pyc
+entralinked/
+!entralinked/entralinked.jar

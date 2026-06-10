@@ -1,12 +1,12 @@
 import pygame
 from ui.screen import Screen
 from ui.set_screen import set_screen
-from eontimer import request_exit
+from entralinked import request_exit
 from ui.widgets import Button
 from ui.layout import MAIN
 
 
-class EonTimerScreen(Screen):
+class EntralinkedScreen(Screen):
     def __init__(self):
         self.done = False
         self.exit_button = Button(
@@ -20,7 +20,7 @@ class EonTimerScreen(Screen):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 self._exit()
-            elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+            elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                 self._exit()
 
         self.exit_button.handle_event(event)
@@ -33,11 +33,11 @@ class EonTimerScreen(Screen):
         font = pygame.font.SysFont(None, 28)
         title_font = pygame.font.SysFont(None, 36)
 
-        title = title_font.render("EonTimer", True, (255, 255, 255))
+        title = title_font.render("Entralinked", True, (255, 255, 255))
         surface.blit(title, (MAIN.left + 30, MAIN.top + 30))
 
         lines = [
-            "The EonTimer helper is launching locally.",
+            "The Entralinked Java app is launching locally.",
             "Press Esc to return to the menu.",
         ]
 

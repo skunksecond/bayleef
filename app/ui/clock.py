@@ -29,6 +29,14 @@ def get_clock_display_strings(now=None):
     return time_text, date_text
 
 
+def get_clock_text_positions(rect, time_surface, date_surface):
+    text_width = max(time_surface.get_width(), date_surface.get_width())
+    text_height = time_surface.get_height() + date_surface.get_height() + 4
+    text_x = max(rect.left - text_width - 8, 0)
+    text_y = max(rect.centery - text_height // 2, 0)
+    return text_x, text_y
+
+
 def draw_clock(surface, rect=None, color=None):
     color = color or normalize_color(THEME.get("text", (255, 255, 255)))
 
@@ -72,11 +80,12 @@ def draw_clock(surface, rect=None, color=None):
     pygame.draw.circle(surface, color, center, 4)
 
     time_text, date_text = get_clock_display_strings(now)
-    base_font = pygame.font.SysFont(None, 18)
+    base_font = pygame.font.SysFont(None, 16)
     time_surface = base_font.render(time_text, True, color)
     date_surface = base_font.render(date_text, True, color)
 
-    surface.blit(time_surface, (rect.right - time_surface.get_width() - 6, rect.bottom + 8))
-    surface.blit(date_surface, (rect.right - date_surface.get_width() - 6, rect.bottom + 28))
+    text_x, text_y = get_clock_text_positions(rect, time_surface, date_surface)
+    surface.blit(time_surface, (text_x, text_y))
+    surface.blit(date_surface, (text_x, text_y + time_surface.get_height() + 2))
 
     return time_text, date_text

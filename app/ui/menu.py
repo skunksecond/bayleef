@@ -4,6 +4,7 @@ from ui.screen import Screen
 from ui.layout import *
 from ui.widgets import Button
 from eontimer import start_eontimer
+from entralinked import start_entralinked
 from ui.set_screen import *
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -33,7 +34,9 @@ class MainMenu(Screen):
 
             button = Button(rect, label)
 
-            if label == "EonTimer":
+            if label == "Entralinked":
+                button.callback = self._open_entralinked
+            elif label == "EonTimer":
                 button.callback = self._open_eontimer
             
             self.buttons.append(button)
@@ -74,6 +77,13 @@ class MainMenu(Screen):
         self.buttons[self.selected_index].set_selected(False)
         self.selected_index = (self.selected_index + delta) % len(self.buttons)
         self.buttons[self.selected_index].set_selected(True)
+
+    def _open_entralinked(self):
+        print("Opening Entralinked")
+        from ui.EntralinkedScreen import EntralinkedScreen
+        screen = EntralinkedScreen()
+        set_screen(screen)
+        start_entralinked(exit_callback=screen._return_to_menu)
 
     def _open_eontimer(self):
         print("Opening EonTimer")
