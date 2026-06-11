@@ -29,6 +29,7 @@ import requests
 
 API_BASE = "https://pokeapi.co/api/v2/"
 DEFAULT_LIMIT = 1025
+REGIONAL_FORM_MARKERS = ("-alola", "-galar", "-hisui", "-paldea")
 
 
 class PokeApiClient:
@@ -123,8 +124,11 @@ def create_schema(conn: sqlite3.Connection) -> None:
         CREATE TABLE pokemon (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
+            national_dex_id INTEGER NOT NULL,
             species_id INTEGER NOT NULL,
             species_name TEXT NOT NULL,
+            form_name TEXT,
+            is_default INTEGER NOT NULL,
             height_dm INTEGER,
             weight_hg INTEGER,
             base_experience INTEGER,
@@ -226,6 +230,7 @@ def create_schema(conn: sqlite3.Connection) -> None:
         );
 
         CREATE INDEX idx_pokemon_name ON pokemon(name);
+        CREATE INDEX idx_pokemon_national_dex ON pokemon(national_dex_id);
         CREATE INDEX idx_moves_pokemon_generation ON pokemon_moves(pokemon_id, generation_name);
         CREATE INDEX idx_moves_method ON pokemon_moves(learn_method);
         CREATE INDEX idx_entries_species_generation ON pokedex_entries(species_id, generation_name);
@@ -254,7 +259,7 @@ def build_version_maps(
         generation = api.get_url(item["url"])
         generation_name = generation["name"]
         conn.execute(
-            "INSERT INTO generations (name, api_id) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO generations (name, api_id) VALUES (?, ?)",
             (generation_name, generation["id"]),
         )
 
@@ -266,7 +271,7 @@ def build_version_maps(
         generation_by_version_group[group_name] = generation_name
         conn.execute(
             """
-            INSERT INTO version_groups (name, api_id, generation_name)
+            INSERT OR IGNORE INTO version_groups (name, api_id, generation_name)
             VALUES (?, ?, ?)
             """,
             (group_name, version_group["id"], generation_name),
@@ -277,7 +282,7 @@ def build_version_maps(
             generation_by_version[version_name] = generation_name
             conn.execute(
                 """
-                INSERT INTO versions (
+                INSERT OR IGNORE INTO versions (
                     name,
                     api_id,
                     version_group_name,
@@ -300,14 +305,18 @@ def insert_pokemon_core(
     conn: sqlite3.Connection,
     pokemon: dict[str, Any],
     species: dict[str, Any],
+    is_default: bool,
 ) -> None:
     conn.execute(
         """
-        INSERT INTO pokemon (
+        INSERT OR REPLACE INTO pokemon (
             id,
             name,
+            national_dex_id,
             species_id,
             species_name,
+            form_name,
+            is_default,
             height_dm,
             weight_hg,
             base_experience,
@@ -319,13 +328,16 @@ def insert_pokemon_core(
             is_legendary,
             is_mythical
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             pokemon["id"],
             pokemon["name"],
             species["id"],
+            species["id"],
             species["name"],
+            None if is_default else pokemon["name"],
+            int(is_default),
             pokemon.get("height"),
             pokemon.get("weight"),
             pokemon.get("base_experience"),
@@ -342,7 +354,7 @@ def insert_pokemon_core(
     for item in pokemon["types"]:
         conn.execute(
             """
-            INSERT INTO pokemon_types (pokemon_id, slot, type_name)
+            INSERT OR REPLACE INTO pokemon_types (pokemon_id, slot, type_name)
             VALUES (?, ?, ?)
             """,
             (pokemon["id"], item["slot"], item["type"]["name"]),
@@ -351,7 +363,7 @@ def insert_pokemon_core(
     for item in pokemon["abilities"]:
         conn.execute(
             """
-            INSERT INTO pokemon_abilities (
+            INSERT OR REPLACE INTO pokemon_abilities (
                 pokemon_id,
                 slot,
                 ability_name,
@@ -370,7 +382,7 @@ def insert_pokemon_core(
     for item in pokemon["stats"]:
         conn.execute(
             """
-            INSERT INTO pokemon_stats (
+            INSERT OR REPLACE INTO pokemon_stats (
                 pokemon_id,
                 stat_name,
                 base_stat,
@@ -389,7 +401,7 @@ def insert_pokemon_core(
     for egg_group in species["egg_groups"]:
         conn.execute(
             """
-            INSERT INTO egg_groups (pokemon_id, egg_group_name)
+            INSERT OR IGNORE INTO egg_groups (pokemon_id, egg_group_name)
             VALUES (?, ?)
             """,
             (pokemon["id"], egg_group["name"]),
@@ -565,6 +577,68 @@ def optional_name(resource: dict[str, Any] | None) -> str | None:
     return resource.get("name")
 
 
+def ensure_form_columns(conn: sqlite3.Connection) -> None:
+    columns = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(pokemon)").fetchall()
+    }
+
+    if "national_dex_id" not in columns:
+        conn.execute("ALTER TABLE pokemon ADD COLUMN national_dex_id INTEGER")
+        conn.execute("UPDATE pokemon SET national_dex_id = species_id")
+
+    if "form_name" not in columns:
+        conn.execute("ALTER TABLE pokemon ADD COLUMN form_name TEXT")
+
+    if "is_default" not in columns:
+        conn.execute(
+            "ALTER TABLE pokemon ADD COLUMN is_default INTEGER NOT NULL DEFAULT 1"
+        )
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_pokemon_national_dex ON pokemon(national_dex_id)"
+    )
+
+
+def is_regional_form(pokemon_name: str) -> bool:
+    return any(marker in pokemon_name for marker in REGIONAL_FORM_MARKERS)
+
+
+def selected_varieties(
+    species: dict[str, Any],
+    form_scope: str,
+) -> list[dict[str, Any]]:
+    if form_scope == "none":
+        return []
+
+    varieties = []
+    for variety in species["varieties"]:
+        if variety["is_default"]:
+            continue
+
+        pokemon_name = variety["pokemon"]["name"]
+        if form_scope == "regional" and not is_regional_form(pokemon_name):
+            continue
+
+        varieties.append(variety)
+
+    return varieties
+
+
+def insert_complete_pokemon(
+    conn: sqlite3.Connection,
+    pokemon: dict[str, Any],
+    species: dict[str, Any],
+    generation_by_version_group: dict[str, str],
+    generation_by_version: dict[str, str],
+    language: str,
+    is_default: bool,
+) -> None:
+    insert_pokemon_core(conn, pokemon, species, is_default=is_default)
+    insert_moves(conn, pokemon, generation_by_version_group)
+    insert_pokedex_entries(conn, species, generation_by_version, language)
+
+
 def build_database(args: argparse.Namespace) -> None:
     output_path = Path(args.output)
     cache_dir = Path(args.cache_dir)
@@ -581,6 +655,7 @@ def build_database(args: argparse.Namespace) -> None:
         insert_metadata(conn, "source", API_BASE)
         insert_metadata(conn, "pokemon_limit", args.limit)
         insert_metadata(conn, "language", args.language)
+        insert_metadata(conn, "form_scope", args.form_scope)
         insert_metadata(conn, "built_at_unix", int(time.time()))
 
         generation_by_version_group, generation_by_version = build_version_maps(
@@ -595,9 +670,28 @@ def build_database(args: argparse.Namespace) -> None:
             pokemon = api.get(f"pokemon/{pokemon_id}")
             species = api.get_url(pokemon["species"]["url"])
 
-            insert_pokemon_core(conn, pokemon, species)
-            insert_moves(conn, pokemon, generation_by_version_group)
-            insert_pokedex_entries(conn, species, generation_by_version, args.language)
+            insert_complete_pokemon(
+                conn,
+                pokemon,
+                species,
+                generation_by_version_group,
+                generation_by_version,
+                args.language,
+                is_default=True,
+            )
+
+            for variety in selected_varieties(species, args.form_scope):
+                form_pokemon = api.get_url(variety["pokemon"]["url"])
+                print(f"Fetching form {form_pokemon['name']}")
+                insert_complete_pokemon(
+                    conn,
+                    form_pokemon,
+                    species,
+                    generation_by_version_group,
+                    generation_by_version,
+                    args.language,
+                    is_default=False,
+                )
 
             evolution_chain_id = resource_id(species["evolution_chain"])
             if evolution_chain_id not in seen_evolution_chains:
@@ -650,6 +744,15 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=25,
         help="Commit progress after this many Pokemon.",
+    )
+    parser.add_argument(
+        "--form-scope",
+        choices=("none", "regional", "all"),
+        default="none",
+        help=(
+            "Include no non-default forms, only regional forms, or all PokeAPI "
+            "varieties in the database build."
+        ),
     )
     return parser.parse_args()
 

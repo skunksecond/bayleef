@@ -4,6 +4,7 @@ __pycache__/
 .cache/
 *.pyc
 app/data/*.sqlite
+app/assets/pokemon/
 /app/third_party/entralinked/dlc
 /app/third_party/entralinked/libs
 /app/third_party/entralinked/logs

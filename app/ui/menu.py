@@ -42,6 +42,8 @@ class MainMenu(Screen):
                 button.callback = self._open_entralinked
             elif label == "EonTimer":
                 button.callback = self._open_eontimer
+            elif label == "Pokedex":
+                button.callback = self._open_pokedex
             
             self.buttons.append(button)
 
@@ -88,6 +90,12 @@ class MainMenu(Screen):
         screen = EntralinkedScreen()
         set_screen(screen)
         start_entralinked(exit_callback=screen._return_to_menu)
+
+    def _open_pokedex(self):
+        print("Opening Pokedex")
+        from ui.PokedexScreen import PokedexScreen
+
+        set_screen(PokedexScreen())
 
     def _open_eontimer(self):
         print("Opening EonTimer")
