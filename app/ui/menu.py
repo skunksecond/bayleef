@@ -56,7 +56,7 @@ class MainMenu(Screen):
     def draw(self, surface):
         font = pygame.font.SysFont(None, 36)
         header_img = pygame.image.load(script_dir + "/logo/" + THEME["logo"])
-        header_img_resized = pygame.transform.scale(header_img, (162, 50))
+        header_img_resized = pygame.transform.smoothscale(header_img, (162, 50))
         surface.blit(header_img_resized, (HEADER.left + 20, 1))
 
         for button in self.buttons:
