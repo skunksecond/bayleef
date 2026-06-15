@@ -44,6 +44,8 @@ class MainMenu(Screen):
                 button.callback = self._open_eontimer
             elif label == "Pokedex":
                 button.callback = self._open_pokedex
+            elif label == "Settings":
+                button.callback = self._open_settings
             
             self.buttons.append(button)
 
@@ -103,6 +105,12 @@ class MainMenu(Screen):
         screen = EonTimerScreen()
         set_screen(screen)
         start_eontimer(exit_callback=screen._return_to_menu)
+
+    def _open_settings(self):
+        print("Opening Settings")
+        from ui.SettingsScreen import SettingsScreen
+
+        set_screen(SettingsScreen())
 
     def _activate_button(self, button):
         print(f"Selected: {button.text}")
