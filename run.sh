@@ -1,3 +1,3 @@
-cd /home/skunk/bayleef
+cd /home/skunk/bayleef/app
 
 python3 main.py
