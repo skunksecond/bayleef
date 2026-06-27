@@ -1,7 +1,7 @@
-cd /home/skunk/bayleef/
+WORKING_DIR=$(pwd)
 
 source .venv/bin/activate
 
-cd /home/skunk/bayleef/app
+cd ${WORKING_DIR}/app
 
 python3 main.py
