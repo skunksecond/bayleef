@@ -36,6 +36,12 @@ def main():
                     run = False
                 current_screen.handle_event(event)
 
+            keys = pygame.key.get_pressed()
+
+            if (keys[pygame.K_LCTRL] or keys[pygame.K_RCTRL]) and \
+                keys[pygame.K_ESCAPE]:
+                run = False
+
             current_screen.update()
 
             screen.fill((20, 20, 20))
