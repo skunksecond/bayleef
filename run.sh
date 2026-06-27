@@ -1,6 +1,6 @@
 cd /home/skunk/bayleef/
 
-sources .venv/bin/activate
+source .venv/bin/activate
 
 cd /home/skunk/bayleef/app
 
