@@ -21,7 +21,8 @@ def main():
 
     pygame.display.set_icon(icon_image)
 
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    display_flags = pygame.NOFRAME if os.environ.get("SDL_VIDEODRIVER") == "x11" else 0
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), display_flags)
     pygame.display.set_caption("Bayleef")
 
     clock = pygame.time.Clock()

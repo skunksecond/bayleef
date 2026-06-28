@@ -85,7 +85,8 @@ def _append_log_failure_details():
 
     combined_details = " ".join(details).lower()
     if "bindexception" in combined_details or "permission denied" in combined_details:
-        _set_status("Linux may be blocking Entralinked from binding its DNS server to port 53.")
+        _set_status("Linux blocked Entralinked from binding required ports 53, 80, or 443.")
+        _set_status("For this boot: sudo sysctl -w net.ipv4.ip_unprivileged_port_start=53")
 
     if not details:
         _set_status(f"More details may be in {log_path}")
