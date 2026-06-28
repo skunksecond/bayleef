@@ -13,6 +13,7 @@ _SERVER = None
 _SERVER_THREAD = None
 _BROWSER_PROCESS = None
 _BROWSER_PROFILE = None
+_BROWSER_PROFILE_TEMPORARY = False
 _EXIT_CALLBACK = None
 _STOP_REQUESTED = False
 _STATUS_TEXT = "EonTimer idle."
@@ -37,6 +38,11 @@ _EXIT_STYLE = """
 _EXIT_SCRIPT = """
 <script id="bayleef-exit-script">
 (() => {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      registrations.forEach(registration => registration.unregister());
+    });
+  }
   const button = document.createElement('button');
   button.id = 'bayleef-exit-button';
   button.type = 'button';
@@ -87,6 +93,9 @@ class EonTimerHandler(QuietHandler):
             return
 
         request_path = self.path.split("?", 1)[0]
+        if request_path in ("/registerSW.js", "/EonTimer/registerSW.js"):
+            self._disable_service_worker()
+            return
         if request_path in ("/", "/index.html", "/EonTimer/", "/EonTimer/index.html"):
             self._serve_index_with_exit()
             return
@@ -104,6 +113,18 @@ class EonTimerHandler(QuietHandler):
         content = _inject_exit_controls(html).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _disable_service_worker(self):
+        content = (
+            "navigator.serviceWorker.getRegistrations()"
+            ".then(items => items.forEach(item => item.unregister()));"
+        ).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/javascript; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
@@ -140,11 +161,28 @@ def _find_browser() -> str | None:
         chrome = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
         return str(chrome) if chrome.is_file() else None
 
-    for name in ("surf", "chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+    chromium_names = ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable")
+    preference = os.environ.get("BAYLEEF_EONTIMER_BROWSER", "chromium").strip()
+    if preference and preference not in ("chromium", "surf", "auto"):
+        explicit_browser = shutil.which(preference)
+        if explicit_browser or Path(preference).is_file():
+            return explicit_browser or preference
+
+    names = ("surf", *chromium_names) if preference == "surf" else (*chromium_names, "surf")
+    for name in names:
         executable = shutil.which(name)
         if executable:
             return executable
     return None
+
+
+def _create_browser_profile() -> tuple[str, bool]:
+    profile = Path.home() / ".cache" / "bayleef" / "eontimer-chromium"
+    try:
+        profile.mkdir(parents=True, exist_ok=True)
+        return str(profile), False
+    except OSError:
+        return tempfile.mkdtemp(prefix="bayleef-eontimer-"), True
 
 
 def _browser_command(browser: str, url: str, profile_dir: str | None) -> list[str]:
@@ -166,6 +204,12 @@ def _browser_command(browser: str, url: str, profile_dir: str | None) -> list[st
         "--noerrdialogs",
         "--disable-session-crashed-bubble",
         "--disable-translate",
+        "--disable-background-networking",
+        "--disable-component-update",
+        "--disable-extensions",
+        "--disable-sync",
+        "--renderer-process-limit=1",
+        "--disk-cache-size=16777216",
         "--password-store=basic",
     ]
     if sys.platform.startswith("linux"):
@@ -192,7 +236,7 @@ def request_exit(callback=None):
 
 def start_eontimer(exit_callback=None):
     global _SERVER, _SERVER_THREAD, _BROWSER_PROCESS, _BROWSER_PROFILE
-    global _EXIT_CALLBACK, _STOP_REQUESTED
+    global _BROWSER_PROFILE_TEMPORARY, _EXIT_CALLBACK, _STOP_REQUESTED
 
     if _SERVER is not None:
         return True
@@ -211,7 +255,7 @@ def start_eontimer(exit_callback=None):
 
     browser = _find_browser()
     if not browser:
-        _set_status("No browser found. Install surf (recommended) or chromium.")
+        _set_status("No browser found. Install Chromium, or Surf as a fallback.")
         return False
 
     handler = partial(EonTimerHandler, directory=str(eontimer_dir))
@@ -225,7 +269,7 @@ def start_eontimer(exit_callback=None):
     _SERVER_THREAD.start()
 
     if Path(browser).name != "surf":
-        _BROWSER_PROFILE = tempfile.mkdtemp(prefix="bayleef-eontimer-")
+        _BROWSER_PROFILE, _BROWSER_PROFILE_TEMPORARY = _create_browser_profile()
     command = _browser_command(browser, "http://127.0.0.1:8000/", _BROWSER_PROFILE)
     popen_options = {
         "stdout": subprocess.DEVNULL,
@@ -285,7 +329,7 @@ def _terminate_browser(process):
 
 def stop_eontimer():
     global _SERVER, _SERVER_THREAD, _BROWSER_PROCESS, _BROWSER_PROFILE
-    global _EXIT_CALLBACK, _STOP_REQUESTED
+    global _BROWSER_PROFILE_TEMPORARY, _EXIT_CALLBACK, _STOP_REQUESTED
 
     _STOP_REQUESTED = True
 
@@ -302,9 +346,10 @@ def stop_eontimer():
         _SERVER_THREAD.join(timeout=1)
         _SERVER_THREAD = None
 
-    if _BROWSER_PROFILE is not None:
+    if _BROWSER_PROFILE is not None and _BROWSER_PROFILE_TEMPORARY:
         shutil.rmtree(_BROWSER_PROFILE, ignore_errors=True)
-        _BROWSER_PROFILE = None
+    _BROWSER_PROFILE = None
+    _BROWSER_PROFILE_TEMPORARY = False
 
     _EXIT_CALLBACK = None
     _set_status("EonTimer closed.")

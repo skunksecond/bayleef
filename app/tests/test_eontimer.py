@@ -41,3 +41,5 @@ def test_chromium_command_uses_isolated_profile():
 
     assert "--kiosk" in command
     assert "--user-data-dir=/tmp/eontimer-profile" in command
+    assert "--renderer-process-limit=1" in command
+    assert "--disable-background-networking" in command

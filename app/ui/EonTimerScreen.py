@@ -51,7 +51,7 @@ class EonTimerScreen(Screen):
         surface.blit(title, (MAIN.left + 30, MAIN.top + 30))
 
         lines = [
-            "EonTimer opens in a local Chromium window above Bayleef.",
+            "EonTimer opens in a local browser window above Bayleef.",
             "Close that window or press Esc here to return to the menu.",
         ]
 
