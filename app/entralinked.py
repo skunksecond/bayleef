@@ -1,13 +1,20 @@
+import os
 import shutil
 import subprocess
 import sys
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
 _SERVER_PROCESS = None
 _EXIT_CALLBACK = None
 _STATUS_TEXT = "Entralinked idle."
+_STATUS_HISTORY = deque([_STATUS_TEXT], maxlen=8)
+_STATUS_LOCK = threading.Lock()
+_PROCESS_ENV = None
+_STOP_REQUESTED = False
+_LAUNCH_TIME = 0.0
 
 
 def get_jar_path() -> Path:
@@ -18,9 +25,70 @@ def get_status_text() -> str:
     return _STATUS_TEXT
 
 
+def get_status_lines() -> list[str]:
+    with _STATUS_LOCK:
+        return list(_STATUS_HISTORY)
+
+
 def _set_status(message: str):
     global _STATUS_TEXT
-    _STATUS_TEXT = message
+    message = " ".join(str(message).split())
+    if not message:
+        return
+    with _STATUS_LOCK:
+        _STATUS_TEXT = message
+        if not _STATUS_HISTORY or _STATUS_HISTORY[-1] != message:
+            _STATUS_HISTORY.append(message)
+
+
+def _reset_status(message: str):
+    global _STATUS_TEXT
+    with _STATUS_LOCK:
+        _STATUS_TEXT = message
+        _STATUS_HISTORY.clear()
+        _STATUS_HISTORY.append(message)
+
+
+def _build_process_environment() -> dict[str, str]:
+    env = os.environ.copy()
+    if not sys.platform.startswith("linux"):
+        return env
+
+    if not env.get("DISPLAY"):
+        x11_socket_dir = Path("/tmp/.X11-unix")
+        if x11_socket_dir.is_dir():
+            displays = sorted(x11_socket_dir.glob("X*"))
+            if displays:
+                env["DISPLAY"] = f":{displays[0].name[1:]}"
+
+    if not env.get("XAUTHORITY"):
+        authority_file = Path.home() / ".Xauthority"
+        if authority_file.is_file():
+            env["XAUTHORITY"] = str(authority_file)
+
+    return env
+
+
+def _append_log_failure_details():
+    log_path = get_jar_path().parent / "logs" / "latest.log"
+    try:
+        if not log_path.is_file() or log_path.stat().st_mtime < _LAUNCH_TIME - 2:
+            return
+        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-40:]
+    except OSError:
+        return
+
+    markers = (" error ", "exception", "caused by", "denied", "failed", "address already")
+    details = [line.strip() for line in lines if any(marker in line.lower() for marker in markers)]
+    for line in details[-3:]:
+        _set_status(line[:300])
+
+    combined_details = " ".join(details).lower()
+    if "bindexception" in combined_details or "permission denied" in combined_details:
+        _set_status("Linux may be blocking Entralinked from binding its DNS server to port 53.")
+
+    if not details:
+        _set_status(f"More details may be in {log_path}")
 
 
 def _run_command(command: list[str]) -> str | None:
@@ -30,6 +98,7 @@ def _run_command(command: list[str]) -> str | None:
             check=True,
             capture_output=True,
             text=True,
+            env=_PROCESS_ENV,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
@@ -113,43 +182,49 @@ def _position_linux_window(window_id: str):
         _run_command(["xdotool", "windowactivate", window_id])
 
 
-def _consume_server_output():
-    if _SERVER_PROCESS is None or _SERVER_PROCESS.stdout is None:
+def _consume_server_output(process):
+    if process.stdout is None:
         return
 
     try:
-        for line in _SERVER_PROCESS.stdout:
+        for line in process.stdout:
             text = line.strip()
             if text:
-                _set_status(text[:140])
+                _set_status(text[:300])
     except Exception:
         pass
 
 
-def _prepare_linux_window():
-    if _SERVER_PROCESS is None or not sys.platform.startswith("linux"):
+def _prepare_linux_window(process):
+    if not sys.platform.startswith("linux"):
         return
 
     deadline = time.time() + 15
-    while _SERVER_PROCESS is not None and time.time() < deadline:
-        window_id = _find_window_id_for_pid(_SERVER_PROCESS.pid)
+    while process.poll() is None and time.time() < deadline:
+        window_id = _find_window_id_for_pid(process.pid)
         if window_id:
             _position_linux_window(window_id)
             return
         time.sleep(0.2)
 
-    if _SERVER_PROCESS is not None:
+    if process.poll() is None:
         _set_status("Entralinked launched, but its window was not detected.")
 
 
-def _watch_server_process():
+def _watch_server_process(process, output_watcher):
     global _SERVER_PROCESS
 
-    if _SERVER_PROCESS is None:
-        return
+    return_code = process.wait()
+    output_watcher.join(timeout=1)
+    if _SERVER_PROCESS is process:
+        _SERVER_PROCESS = None
 
-    _SERVER_PROCESS.wait()
-    request_exit()
+    if not _STOP_REQUESTED:
+        _append_log_failure_details()
+        _set_status(f"Entralinked exited unexpectedly (Java exit code {return_code}).")
+        if sys.platform.startswith("linux"):
+            display = (_PROCESS_ENV or {}).get("DISPLAY", "not set")
+            _set_status(f"X11 display used: {display}")
 
 
 def request_exit(callback=None):
@@ -164,7 +239,7 @@ def request_exit(callback=None):
 
 
 def start_entralinked(exit_callback=None):
-    global _SERVER_PROCESS, _EXIT_CALLBACK
+    global _SERVER_PROCESS, _EXIT_CALLBACK, _PROCESS_ENV, _STOP_REQUESTED, _LAUNCH_TIME
 
     if _SERVER_PROCESS is not None:
         return
@@ -173,31 +248,61 @@ def start_entralinked(exit_callback=None):
 
     jar_path = get_jar_path()
     if not jar_path.exists():
-        raise FileNotFoundError(f"Entralinked jar not found: {jar_path}")
+        _reset_status(f"Entralinked jar not found: {jar_path}")
+        return False
 
-    _set_status("Launching Entralinked...")
-    _SERVER_PROCESS = subprocess.Popen(
-        ["java", "-jar", str(jar_path)],
-        cwd=str(jar_path.parent),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
+    _STOP_REQUESTED = False
+    _LAUNCH_TIME = time.time()
+    _PROCESS_ENV = _build_process_environment()
+    _reset_status("Launching Entralinked...")
 
-    output_watcher = threading.Thread(target=_consume_server_output, daemon=True)
+    java_path = shutil.which("java", path=_PROCESS_ENV.get("PATH"))
+    if not java_path:
+        _set_status("Java was not found. Install a JRE and make sure java is on PATH.")
+        return False
+
+    if sys.platform.startswith("linux") and not _PROCESS_ENV.get("DISPLAY"):
+        _set_status("No X11 display was found. Start Bayleef inside an X11 session.")
+        _set_status("For an autostart service, pass DISPLAY=:0 and XAUTHORITY to Bayleef.")
+        return False
+
+    try:
+        _SERVER_PROCESS = subprocess.Popen(
+            [java_path, "-Djava.awt.headless=false", "-jar", str(jar_path)],
+            cwd=str(jar_path.parent),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=_PROCESS_ENV,
+        )
+    except OSError as error:
+        _set_status(f"Could not start Java: {error}")
+        _SERVER_PROCESS = None
+        return False
+
+    process = _SERVER_PROCESS
+    _set_status(f"Java started (PID {process.pid}). Waiting for the Swing window...")
+
+    output_watcher = threading.Thread(target=_consume_server_output, args=(process,), daemon=True)
     output_watcher.start()
 
-    linux_window_watcher = threading.Thread(target=_prepare_linux_window, daemon=True)
+    linux_window_watcher = threading.Thread(target=_prepare_linux_window, args=(process,), daemon=True)
     linux_window_watcher.start()
 
-    server_watcher = threading.Thread(target=_watch_server_process, daemon=True)
+    server_watcher = threading.Thread(
+        target=_watch_server_process,
+        args=(process, output_watcher),
+        daemon=True,
+    )
     server_watcher.start()
+    return True
 
 
 def stop_entralinked():
-    global _SERVER_PROCESS, _EXIT_CALLBACK
+    global _SERVER_PROCESS, _EXIT_CALLBACK, _STOP_REQUESTED
 
+    _STOP_REQUESTED = True
     if _SERVER_PROCESS is not None:
         _SERVER_PROCESS.terminate()
         try:
