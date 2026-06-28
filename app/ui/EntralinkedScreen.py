@@ -24,8 +24,13 @@ def _wrap_text(text, font, width):
 
 
 class EntralinkedScreen(Screen):
+    target_fps = 2
+
     def __init__(self):
         self.done = False
+        self.font = pygame.font.SysFont(None, 28)
+        self.title_font = pygame.font.SysFont(None, 36)
+        self.small_font = pygame.font.SysFont(None, 22)
         self.exit_button = Button(
             pygame.Rect(HEADER.right - 150, HEADER.y + 8, 140, 34),
             "Exit",
@@ -49,12 +54,8 @@ class EntralinkedScreen(Screen):
             self._exit()
 
     def draw(self, surface):
-        font = pygame.font.SysFont(None, 28)
-        title_font = pygame.font.SysFont(None, 36)
-        small_font = pygame.font.SysFont(None, 22)
-
         text_color = pygame.Color(THEME["text"])
-        title = title_font.render("Entralinked", True, text_color)
+        title = self.title_font.render("Entralinked", True, text_color)
         surface.blit(title, (MAIN.left + 30, MAIN.top + 24))
 
         lines = [
@@ -65,11 +66,11 @@ class EntralinkedScreen(Screen):
 
         y = MAIN.top + 84
         for line in lines:
-            text = font.render(line, True, text_color)
+            text = self.font.render(line, True, text_color)
             surface.blit(text, (MAIN.left + 30, y))
             y += 34
 
-        status_label = small_font.render("Launch log", True, text_color)
+        status_label = self.small_font.render("Launch log", True, text_color)
         surface.blit(status_label, (MAIN.left + 30, y + 8))
 
         log_rect = pygame.Rect(MAIN.left + 30, y + 34, MAIN.width - 60, MAIN.bottom - y - 48)
@@ -79,11 +80,11 @@ class EntralinkedScreen(Screen):
         status_color = pygame.Color(THEME["button_select"])
         wrapped_lines = []
         for status in get_status_lines():
-            wrapped_lines.extend(_wrap_text(status, small_font, log_rect.width))
+            wrapped_lines.extend(_wrap_text(status, self.small_font, log_rect.width))
         for line in wrapped_lines[-7:]:
-            status_text = small_font.render(line, True, status_color)
+            status_text = self.small_font.render(line, True, status_color)
             surface.blit(status_text, (log_rect.left, log_y))
-            log_y += small_font.get_linesize()
+            log_y += self.small_font.get_linesize()
         surface.set_clip(previous_clip)
 
         self.exit_button.draw(surface)

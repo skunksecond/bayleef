@@ -22,7 +22,10 @@ def main():
     pygame.display.set_icon(icon_image)
 
     display_flags = pygame.NOFRAME if os.environ.get("SDL_VIDEODRIVER") == "x11" else 0
-    screen = pygame.display.set_mode((WIDTH, HEIGHT), display_flags)
+    try:
+        screen = pygame.display.set_mode((WIDTH, HEIGHT), display_flags, vsync=1)
+    except pygame.error:
+        screen = pygame.display.set_mode((WIDTH, HEIGHT), display_flags)
     pygame.display.set_caption("Bayleef")
 
     clock = pygame.time.Clock()
@@ -51,7 +54,7 @@ def main():
             current_screen.draw(screen)
 
             pygame.display.flip()
-            clock.tick(60)
+            clock.tick(max(1, getattr(current_screen, "target_fps", 10)))
     except KeyboardInterrupt:
         pass
     finally:

@@ -17,8 +17,12 @@ def _fit_text(text, font, width):
 
 
 class EonTimerScreen(Screen):
+    target_fps = 2
+
     def __init__(self):
         self.done = False
+        self.font = pygame.font.SysFont(None, 28)
+        self.title_font = pygame.font.SysFont(None, 36)
         self.exit_button = Button(
             pygame.Rect(HEADER.right - 150, HEADER.y + 8, 140, 34),
             "Exit",
@@ -42,11 +46,8 @@ class EonTimerScreen(Screen):
             self._exit()
 
     def draw(self, surface):
-        font = pygame.font.SysFont(None, 28)
-        title_font = pygame.font.SysFont(None, 36)
-
         text_color = pygame.Color(THEME["text"])
-        title = title_font.render("EonTimer", True, text_color)
+        title = self.title_font.render("EonTimer", True, text_color)
         surface.blit(title, (MAIN.left + 30, MAIN.top + 30))
 
         lines = [
@@ -56,12 +57,12 @@ class EonTimerScreen(Screen):
 
         y = MAIN.top + 90
         for line in lines:
-            text = font.render(line, True, text_color)
+            text = self.font.render(line, True, text_color)
             surface.blit(text, (MAIN.left + 30, y))
             y += 34
 
-        status_text = _fit_text(get_status_text(), font, MAIN.width - 60)
-        status = font.render(status_text, True, pygame.Color(THEME["button_select"]))
+        status_text = _fit_text(get_status_text(), self.font, MAIN.width - 60)
+        status = self.font.render(status_text, True, pygame.Color(THEME["button_select"]))
         surface.blit(status, (MAIN.left + 30, y + 18))
 
         self.exit_button.draw(surface)

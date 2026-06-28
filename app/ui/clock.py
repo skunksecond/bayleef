@@ -4,6 +4,15 @@ import pygame
 
 from ui.theme import THEME
 
+_CLOCK_FONT = None
+
+
+def _get_clock_font():
+    global _CLOCK_FONT
+    if _CLOCK_FONT is None:
+        _CLOCK_FONT = pygame.font.SysFont(None, 16)
+    return _CLOCK_FONT
+
 
 def normalize_color(color):
     if isinstance(color, str):
@@ -80,7 +89,7 @@ def draw_clock(surface, rect=None, color=None):
     pygame.draw.circle(surface, color, center, 4)
 
     time_text, date_text = get_clock_display_strings(now)
-    base_font = pygame.font.SysFont(None, 16)
+    base_font = _get_clock_font()
     time_surface = base_font.render(time_text, True, color)
     date_surface = base_font.render(date_text, True, color)
 

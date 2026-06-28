@@ -1,4 +1,6 @@
 class Screen:
+    target_fps = 10
+
     def update(self):
         pass
 
@@ -7,4 +9,3 @@ class Screen:
 
     def handle_event(self, event):
         pass
-    

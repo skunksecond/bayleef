@@ -258,6 +258,8 @@ class PokemonListItem:
 
 
 class PokedexScreen(Screen):
+    target_fps = 20
+
     def __init__(self):
         self.conn = sqlite3.connect(DATA_PATH)
         self.conn.row_factory = sqlite3.Row
@@ -268,6 +270,12 @@ class PokedexScreen(Screen):
         self.body_font = pygame.font.SysFont("Consolas", 16)
         self.small_font = pygame.font.SysFont("Consolas", 14)
         self.tiny_font = pygame.font.SysFont("Consolas", 12)
+
+        logo_path = os.path.join(SCRIPT_DIR, "logo", THEME["logo"])
+        self.header_image = None
+        if os.path.exists(logo_path):
+            logo = pygame.image.load(logo_path).convert_alpha()
+            self.header_image = pygame.transform.smoothscale(logo, (162, 50))
 
         self.background = theme_color("primary")
         self.panel_bg = blend(theme_color("primary")[:3], (255, 255, 255), 0.16)
@@ -335,6 +343,8 @@ class PokedexScreen(Screen):
         self.detail_cache = {}
         self.sprite_cache = {}
         self.type_icon_cache = {}
+        self._main_content_cache = None
+        self._main_content_cache_key = None
         self._last_tick = pygame.time.get_ticks()
         self._sync_selection()
 
@@ -430,11 +440,8 @@ class PokedexScreen(Screen):
             self._draw_generation_menu(surface)
 
     def _draw_header(self, surface):
-        logo_path = os.path.join(SCRIPT_DIR, "logo", THEME["logo"])
-        if os.path.exists(logo_path):
-            logo = pygame.image.load(logo_path)
-            logo = pygame.transform.smoothscale(logo, (162, 50))
-            surface.blit(logo, (HEADER.left + 14, HEADER.top))
+        if self.header_image is not None:
+            surface.blit(self.header_image, (HEADER.left + 14, HEADER.top))
         else:
             title = self.header_font.render("Bayleef", True, self.text_color)
             surface.blit(title, (HEADER.left + 18, HEADER.top + 14))
@@ -538,6 +545,33 @@ class PokedexScreen(Screen):
         )
 
     def _build_main_content(self, width: int):
+        selected = self._selected_item()
+        animation_step = 0
+        if selected is not None:
+            details = self._load_pokemon_details(
+                selected.pokemon_id,
+                GENERATION_ORDER[self.generation_index][0],
+            )
+            title_width = max(1, width - 344)
+            if self.title_font.size(details["display_name"])[0] > title_width:
+                animation_step = pygame.time.get_ticks() // 100
+
+        cache_key = (
+            width,
+            self.selected_pokemon_id,
+            self.generation_index,
+            self.entry_scroll,
+            self.evolution_scroll,
+            self.move_scrolls["level-up"],
+            self.move_scrolls["machine"],
+            animation_step,
+        )
+        if cache_key != self._main_content_cache_key:
+            self._main_content_cache = self._render_main_content(width)
+            self._main_content_cache_key = cache_key
+        return self._main_content_cache
+
+    def _render_main_content(self, width: int):
         selected = self._selected_item()
         if selected is None:
             surface = pygame.Surface((width, 140), pygame.SRCALPHA)

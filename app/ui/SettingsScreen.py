@@ -42,6 +42,12 @@ class SettingsScreen(Screen):
         self.small_font = pygame.font.SysFont("Consolas", 14)
         self.tiny_font = pygame.font.SysFont("Consolas", 12)
 
+        logo_path = os.path.join(SCRIPT_DIR, "logo", THEME["logo"])
+        self.header_image = None
+        if os.path.exists(logo_path):
+            logo = pygame.image.load(logo_path).convert_alpha()
+            self.header_image = pygame.transform.smoothscale(logo, (162, 50))
+
         primary = theme_color("primary")
         nav = theme_color("nav")
         outline = theme_color("outline")
@@ -116,11 +122,8 @@ class SettingsScreen(Screen):
         surface.blit(hint, (FOOTER.x + 12, FOOTER.y + 13))
 
     def _draw_header(self, surface):
-        logo_path = os.path.join(SCRIPT_DIR, "logo", THEME["logo"])
-        if os.path.exists(logo_path):
-            logo = pygame.image.load(logo_path)
-            logo = pygame.transform.smoothscale(logo, (162, 50))
-            surface.blit(logo, (HEADER.left + 14, HEADER.top))
+        if self.header_image is not None:
+            surface.blit(self.header_image, (HEADER.left + 14, HEADER.top))
 
         title = self.section_font.render("Device Settings", True, self.text_color)
         surface.blit(title, (HEADER.left + 200, HEADER.top + 14))

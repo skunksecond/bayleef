@@ -22,6 +22,7 @@ fi
 
 export SDL_VIDEODRIVER=x11
 export SDL_VIDEO_WINDOW_POS=0,0
+export PYGAME_BLEND_ALPHA_SDL2=1
 
 window_manager_pid=""
 if ! wmctrl -m >/dev/null 2>&1; then

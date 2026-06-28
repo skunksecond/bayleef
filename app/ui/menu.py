@@ -13,6 +13,8 @@ class MainMenu(Screen):
     def __init__(self):
         self.buttons = []
         self.selected_index = 0
+        header_img = pygame.image.load(script_dir + "/logo/" + THEME["logo"]).convert_alpha()
+        self.header_image = pygame.transform.smoothscale(header_img, (162, 50))
         self._build_buttons()
 
 # builds buttons, button callbacks have to be defined here
@@ -56,10 +58,7 @@ class MainMenu(Screen):
         pass
 
     def draw(self, surface):
-        font = pygame.font.SysFont(None, 36)
-        header_img = pygame.image.load(script_dir + "/logo/" + THEME["logo"])
-        header_img_resized = pygame.transform.smoothscale(header_img, (162, 50))
-        surface.blit(header_img_resized, (HEADER.left + 20, 1))
+        surface.blit(self.header_image, (HEADER.left + 20, 1))
 
         for button in self.buttons:
             button.draw(surface)
