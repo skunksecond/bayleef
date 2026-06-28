@@ -13,3 +13,4 @@ app/assets/pokemon/
 !/app/third_party/entralinked/entralinked.jar
 /app/third_party/entralinked/*
 /app/2026-06-27-4.log.gz
+/.agents

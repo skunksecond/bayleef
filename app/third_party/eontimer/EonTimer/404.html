@@ -4,7 +4,7 @@
   // Any path served as a 404 is redirected to the app root,
   // preserving the original query string and hash.
   var l = window.location;
-  var segmentsToKeep = 0; // keep the app root segment
+  var segmentsToKeep = 1; // keep the /EonTimer base segment
   l.replace(
     l.protocol +
       '//' +

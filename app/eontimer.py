@@ -17,10 +17,63 @@ _EXIT_CALLBACK = None
 _STOP_REQUESTED = False
 _STATUS_TEXT = "EonTimer idle."
 
+_EXIT_STYLE = """
+<style id="bayleef-exit-style">
+  #bayleef-exit-button {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    z-index: 2147483647;
+    border: 1px solid #fff;
+    background: #101010;
+    color: #fff;
+    padding: 8px 10px;
+    font: 700 13px sans-serif;
+    cursor: pointer;
+  }
+</style>
+"""
+
+_EXIT_SCRIPT = """
+<script id="bayleef-exit-script">
+(() => {
+  const button = document.createElement('button');
+  button.id = 'bayleef-exit-button';
+  button.type = 'button';
+  button.textContent = 'Return to menu';
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = 'Closing...';
+    try {
+      await fetch('/eontimer/close');
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = 'Return to menu';
+    }
+  });
+  document.body.appendChild(button);
+})();
+</script>
+"""
+
+
+def _inject_exit_controls(html: str) -> str:
+    if 'id="bayleef-exit-script"' in html:
+        return html
+    html = html.replace("</head>", f"{_EXIT_STYLE}</head>", 1)
+    return html.replace("</body>", f"{_EXIT_SCRIPT}</body>", 1)
+
 
 class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         return
+    def translate_path(self, path):
+        # 1. Strip the '/EonTimer' prefix from the URL path if present
+        if path.startswith('/EonTimer'):
+            path = path.replace('/EonTimer', '', 1)
+
+        # 2. Let the standard SimpleHTTPRequestHandler handle the rest
+        return super().translate_path(path)
 
 
 class EonTimerHandler(QuietHandler):
@@ -33,7 +86,28 @@ class EonTimerHandler(QuietHandler):
             threading.Thread(target=request_exit, daemon=True).start()
             return
 
+        request_path = self.path.split("?", 1)[0]
+        if request_path in ("/", "/index.html", "/EonTimer/", "/EonTimer/index.html"):
+            self._serve_index_with_exit()
+            return
+
         super().do_GET()
+
+    def _serve_index_with_exit(self):
+        index_path = Path(self.directory) / "index.html"
+        try:
+            html = index_path.read_text(encoding="utf-8")
+        except OSError:
+            self.send_error(404, "EonTimer index not found")
+            return
+
+        content = _inject_exit_controls(html).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
 
 
 def get_status_text() -> str:
@@ -49,7 +123,7 @@ def _get_eontimer_dir() -> Path:
     return Path(__file__).resolve().parent / "third_party" / "eontimer" / "EonTimer"
 
 
-def _find_chromium() -> str | None:
+def _find_browser() -> str | None:
     if sys.platform.startswith("win"):
         candidates = [
             Path(os.environ.get("PROGRAMFILES", "")) / "Google/Chrome/Application/chrome.exe",
@@ -66,14 +140,20 @@ def _find_chromium() -> str | None:
         chrome = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
         return str(chrome) if chrome.is_file() else None
 
-    for name in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+    for name in ("surf", "chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
         executable = shutil.which(name)
         if executable:
             return executable
     return None
 
 
-def _browser_command(browser: str, url: str, profile_dir: str) -> list[str]:
+def _browser_command(browser: str, url: str, profile_dir: str | None) -> list[str]:
+    if Path(browser).name == "surf":
+        return [browser, "-F", "-S", url]
+
+    if profile_dir is None:
+        raise ValueError("Chromium requires an isolated profile directory")
+
     command = [
         browser,
         f"--app={url}",
@@ -129,9 +209,9 @@ def start_eontimer(exit_callback=None):
         _set_status("No X11 display found. Start Bayleef using ./run.sh")
         return False
 
-    browser = _find_chromium()
+    browser = _find_browser()
     if not browser:
-        _set_status("No Chromium browser found. Install chromium or chromium-browser.")
+        _set_status("No browser found. Install surf (recommended) or chromium.")
         return False
 
     handler = partial(EonTimerHandler, directory=str(eontimer_dir))
@@ -144,7 +224,8 @@ def start_eontimer(exit_callback=None):
     _SERVER_THREAD = threading.Thread(target=_SERVER.serve_forever, daemon=True)
     _SERVER_THREAD.start()
 
-    _BROWSER_PROFILE = tempfile.mkdtemp(prefix="bayleef-eontimer-")
+    if Path(browser).name != "surf":
+        _BROWSER_PROFILE = tempfile.mkdtemp(prefix="bayleef-eontimer-")
     command = _browser_command(browser, "http://127.0.0.1:8000/", _BROWSER_PROFILE)
     popen_options = {
         "stdout": subprocess.DEVNULL,
