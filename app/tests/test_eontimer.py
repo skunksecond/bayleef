@@ -45,3 +45,13 @@ def test_epiphany_command_uses_application_mode_and_isolated_profile():
         "--profile=/tmp/eontimer-profile",
         "http://127.0.0.1:8000/",
     ]
+
+
+def test_browser_failure_message_includes_last_error_line():
+    message = eontimer._browser_failure_message(
+        "/usr/bin/epiphany-browser",
+        1,
+        "first detail\nfinal detail\n",
+    )
+
+    assert message == "epiphany-browser exited with code 1: final detail"

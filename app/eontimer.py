@@ -189,10 +189,23 @@ def _browser_command(browser: str, url: str, profile_dir: str | None) -> list[st
     ]
 
 
-def _watch_browser_process(process):
-    process.wait()
-    if _BROWSER_PROCESS is process and not _STOP_REQUESTED:
-        request_exit()
+def _browser_failure_message(browser: str, return_code: int, stderr: str) -> str:
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    detail = lines[-1] if lines else "No error details were reported."
+    return f"{Path(browser).name} exited with code {return_code}: {detail}"
+
+
+def _watch_browser_process(process, browser):
+    stderr = process.stderr.read() if process.stderr is not None else ""
+    return_code = process.wait()
+    if _BROWSER_PROCESS is not process or _STOP_REQUESTED:
+        return
+
+    if return_code != 0:
+        _set_status(_browser_failure_message(browser, return_code, stderr))
+        return
+
+    request_exit()
 
 
 def request_exit(callback=None):
@@ -245,7 +258,10 @@ def start_eontimer(exit_callback=None):
     command = _browser_command(browser, "http://127.0.0.1:8000/", _BROWSER_PROFILE)
     popen_options = {
         "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
+        "stderr": subprocess.PIPE,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
     }
     if sys.platform.startswith("linux"):
         popen_options["start_new_session"] = True
@@ -261,7 +277,7 @@ def start_eontimer(exit_callback=None):
     _set_status(f"EonTimer opened in {Path(browser).name}.")
     watcher = threading.Thread(
         target=_watch_browser_process,
-        args=(_BROWSER_PROCESS,),
+        args=(_BROWSER_PROCESS, browser),
         daemon=True,
     )
     watcher.start()

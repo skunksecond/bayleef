@@ -20,6 +20,16 @@ if [[ -z "${DISPLAY:-}" ]]; then
     exec startx /bin/bash "${SCRIPT_DIR}/run.sh" -- :0
 fi
 
+# Epiphany is a D-Bus application. Minimal X11/Openbox sessions do not start a
+# session bus automatically, so provide one before launching Bayleef.
+if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+    if ! command -v dbus-run-session >/dev/null 2>&1; then
+        echo "D-Bus is not installed. Install dbus-daemon to run Epiphany." >&2
+        exit 1
+    fi
+    exec dbus-run-session -- /bin/bash "${SCRIPT_DIR}/run.sh"
+fi
+
 export SDL_VIDEODRIVER=x11
 export SDL_VIDEO_WINDOW_POS=0,0
 export PYGAME_BLEND_ALPHA_SDL2=1
