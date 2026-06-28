@@ -1,10 +1,10 @@
 {
     "header": "#40C060",
-    "nav": "#032902",
-    "primary": "#083109",
+    "nav": "#085005",
+    "primary": "#134613",
     "text": "#FFFFFF",
     "button_fg": "#FFFFFF",
-    "button_bg": "#034117",
+    "button_bg": "#0D6429",
     "button_select": "#9ADB01",
     "outline": "#1E8A1A",
     "logo": "bayleef logo noleaf w.png"
