@@ -32,14 +32,16 @@ def test_surf_command_enables_fullscreen_and_javascript():
     ]
 
 
-def test_chromium_command_uses_isolated_profile():
+def test_epiphany_command_uses_application_mode_and_isolated_profile():
     command = eontimer._browser_command(
-        "/usr/bin/chromium",
+        "/usr/bin/epiphany-browser",
         "http://127.0.0.1:8000/",
         "/tmp/eontimer-profile",
     )
 
-    assert "--kiosk" in command
-    assert "--user-data-dir=/tmp/eontimer-profile" in command
-    assert "--renderer-process-limit=1" in command
-    assert "--disable-background-networking" in command
+    assert command == [
+        "/usr/bin/epiphany-browser",
+        "--application-mode",
+        "--profile=/tmp/eontimer-profile",
+        "http://127.0.0.1:8000/",
+    ]

@@ -145,30 +145,19 @@ def _get_eontimer_dir() -> Path:
 
 
 def _find_browser() -> str | None:
-    if sys.platform.startswith("win"):
-        candidates = [
-            Path(os.environ.get("PROGRAMFILES", "")) / "Google/Chrome/Application/chrome.exe",
-            Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Google/Chrome/Application/chrome.exe",
-            Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/Application/chrome.exe",
-            Path(os.environ.get("PROGRAMFILES", "")) / "Microsoft/Edge/Application/msedge.exe",
-        ]
-        for candidate in candidates:
-            if candidate.is_file():
-                return str(candidate)
-        return shutil.which("chrome") or shutil.which("msedge")
-
-    if sys.platform == "darwin":
-        chrome = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-        return str(chrome) if chrome.is_file() else None
-
-    chromium_names = ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable")
-    preference = os.environ.get("BAYLEEF_EONTIMER_BROWSER", "chromium").strip()
-    if preference and preference not in ("chromium", "surf", "auto"):
+    epiphany_names = ("epiphany-browser", "epiphany")
+    preference = os.environ.get("BAYLEEF_EONTIMER_BROWSER", "epiphany-browser").strip()
+    if preference and preference not in (*epiphany_names, "surf", "auto"):
         explicit_browser = shutil.which(preference)
         if explicit_browser or Path(preference).is_file():
             return explicit_browser or preference
 
-    names = ("surf", *chromium_names) if preference == "surf" else (*chromium_names, "surf")
+    if preference == "surf":
+        names = ("surf", *epiphany_names)
+    elif preference == "epiphany":
+        names = ("epiphany", "epiphany-browser", "surf")
+    else:
+        names = (*epiphany_names, "surf")
     for name in names:
         executable = shutil.which(name)
         if executable:
@@ -177,7 +166,7 @@ def _find_browser() -> str | None:
 
 
 def _create_browser_profile() -> tuple[str, bool]:
-    profile = Path.home() / ".cache" / "bayleef" / "eontimer-chromium"
+    profile = Path.home() / ".cache" / "bayleef" / "eontimer-epiphany"
     try:
         profile.mkdir(parents=True, exist_ok=True)
         return str(profile), False
@@ -190,31 +179,14 @@ def _browser_command(browser: str, url: str, profile_dir: str | None) -> list[st
         return [browser, "-F", "-S", url]
 
     if profile_dir is None:
-        raise ValueError("Chromium requires an isolated profile directory")
+        raise ValueError("Epiphany requires an isolated profile directory")
 
-    command = [
+    return [
         browser,
-        f"--app={url}",
-        "--kiosk",
-        "--window-position=0,0",
-        "--window-size=800,480",
-        f"--user-data-dir={profile_dir}",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--noerrdialogs",
-        "--disable-session-crashed-bubble",
-        "--disable-translate",
-        "--disable-background-networking",
-        "--disable-component-update",
-        "--disable-extensions",
-        "--disable-sync",
-        "--renderer-process-limit=1",
-        "--disk-cache-size=16777216",
-        "--password-store=basic",
+        "--application-mode",
+        f"--profile={profile_dir}",
+        url,
     ]
-    if sys.platform.startswith("linux"):
-        command.append("--ozone-platform=x11")
-    return command
 
 
 def _watch_browser_process(process):
@@ -255,7 +227,7 @@ def start_eontimer(exit_callback=None):
 
     browser = _find_browser()
     if not browser:
-        _set_status("No browser found. Install Chromium, or Surf as a fallback.")
+        _set_status("No browser found. Install epiphany-browser, or Surf as a fallback.")
         return False
 
     handler = partial(EonTimerHandler, directory=str(eontimer_dir))
