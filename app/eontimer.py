@@ -35,6 +35,42 @@ _EXIT_STYLE = """
 </style>
 """
 
+_COMPAT_SCRIPT = """
+<script id="bayleef-compat-script">
+(() => {
+  if (!Number.isFinite(performance.timeOrigin)) {
+    const timeOrigin = Date.now() - performance.now();
+    try {
+      Object.defineProperty(performance, 'timeOrigin', { value: timeOrigin });
+    } catch (error) {
+      performance.timeOrigin = timeOrigin;
+    }
+  }
+
+  const showError = message => {
+    let banner = document.getElementById('bayleef-js-error');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'bayleef-js-error';
+      banner.style.cssText = [
+        'position:fixed', 'left:8px', 'right:8px', 'bottom:8px',
+        'z-index:2147483647', 'padding:8px', 'background:#7f1d1d',
+        'color:white', 'font:13px sans-serif', 'white-space:pre-wrap'
+      ].join(';');
+      document.documentElement.appendChild(banner);
+    }
+    banner.textContent = 'EonTimer JavaScript error: ' + message;
+  };
+
+  window.addEventListener('error', event => showError(event.message || 'Unknown error'));
+  window.addEventListener('unhandledrejection', event => {
+    const reason = event.reason;
+    showError(reason && (reason.stack || reason.message) || String(reason));
+  });
+})();
+</script>
+"""
+
 _EXIT_SCRIPT = """
 <script id="bayleef-exit-script">
 (() => {
@@ -66,7 +102,7 @@ _EXIT_SCRIPT = """
 def _inject_exit_controls(html: str) -> str:
     if 'id="bayleef-exit-script"' in html:
         return html
-    html = html.replace("</head>", f"{_EXIT_STYLE}</head>", 1)
+    html = html.replace("</head>", f"{_EXIT_STYLE}{_COMPAT_SCRIPT}</head>", 1)
     return html.replace("</body>", f"{_EXIT_SCRIPT}</body>", 1)
 
 

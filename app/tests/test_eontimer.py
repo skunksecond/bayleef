@@ -14,6 +14,8 @@ def test_exit_controls_are_injected_once():
 
     assert "button.id = 'bayleef-exit-button'" in result
     assert "fetch('/eontimer/close')" in result
+    assert "performance.timeOrigin" in result
+    assert "bayleef-js-error" in result
     assert repeated == result
 
 
