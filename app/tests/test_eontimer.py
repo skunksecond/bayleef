@@ -55,3 +55,14 @@ def test_browser_failure_message_includes_last_error_line():
     )
 
     assert message == "epiphany-browser exited with code 1: final detail"
+
+
+def test_surf_is_the_default_browser(monkeypatch):
+    monkeypatch.delenv("BAYLEEF_EONTIMER_BROWSER", raising=False)
+    monkeypatch.setattr(
+        eontimer.shutil,
+        "which",
+        lambda name: f"/usr/bin/{name}" if name in ("surf", "epiphany-browser") else None,
+    )
+
+    assert eontimer._find_browser() == "/usr/bin/surf"

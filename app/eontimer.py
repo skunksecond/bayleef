@@ -146,7 +146,7 @@ def _get_eontimer_dir() -> Path:
 
 def _find_browser() -> str | None:
     epiphany_names = ("epiphany-browser", "epiphany")
-    preference = os.environ.get("BAYLEEF_EONTIMER_BROWSER", "epiphany-browser").strip()
+    preference = os.environ.get("BAYLEEF_EONTIMER_BROWSER", "surf").strip()
     if preference and preference not in (*epiphany_names, "surf", "auto"):
         explicit_browser = shutil.which(preference)
         if explicit_browser or Path(preference).is_file():
@@ -242,7 +242,7 @@ def start_eontimer(exit_callback=None):
 
     browser = _find_browser()
     if not browser:
-        _set_status("No browser found. Install epiphany-browser, or Surf as a fallback.")
+        _set_status("No browser found. Install Surf, or epiphany-browser as a fallback.")
         return False
 
     handler = partial(EonTimerHandler, directory=str(eontimer_dir))
