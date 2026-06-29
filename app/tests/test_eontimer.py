@@ -32,7 +32,7 @@ def test_surf_command_enables_fullscreen_and_javascript():
     ]
 
 
-def test_epiphany_command_uses_application_mode_and_isolated_profile():
+def test_epiphany_command_uses_private_instance_and_isolated_profile():
     command = eontimer._browser_command(
         "/usr/bin/epiphany-browser",
         "http://127.0.0.1:8000/",
@@ -41,7 +41,7 @@ def test_epiphany_command_uses_application_mode_and_isolated_profile():
 
     assert command == [
         "/usr/bin/epiphany-browser",
-        "--application-mode",
+        "--private-instance",
         "--profile=/tmp/eontimer-profile",
         "http://127.0.0.1:8000/",
     ]

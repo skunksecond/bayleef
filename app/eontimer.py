@@ -183,7 +183,7 @@ def _browser_command(browser: str, url: str, profile_dir: str | None) -> list[st
 
     return [
         browser,
-        "--application-mode",
+        "--private-instance",
         f"--profile={profile_dir}",
         url,
     ]
