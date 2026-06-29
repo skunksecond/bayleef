@@ -6,6 +6,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import eontimer
 
 
+def test_eontimer_uses_copied_dist_directory():
+    assert eontimer._get_eontimer_dir() == (
+        Path(eontimer.__file__).resolve().parent / "third_party" / "dist"
+    )
+
+
 def test_exit_controls_are_injected_once():
     source = "<html><head></head><body><div id=\"root\"></div></body></html>"
 

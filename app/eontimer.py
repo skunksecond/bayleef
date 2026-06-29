@@ -109,6 +109,11 @@ def _inject_exit_controls(html: str) -> str:
 class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         return
+
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def translate_path(self, path):
         # 1. Strip the '/EonTimer' prefix from the URL path if present
         if path.startswith('/EonTimer'):
@@ -149,7 +154,6 @@ class EonTimerHandler(QuietHandler):
         content = _inject_exit_controls(html).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
         self.wfile.write(content)
@@ -161,7 +165,6 @@ class EonTimerHandler(QuietHandler):
         ).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/javascript; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
         self.wfile.write(content)
@@ -177,7 +180,7 @@ def _set_status(message: str):
 
 
 def _get_eontimer_dir() -> Path:
-    return Path(__file__).resolve().parent / "third_party" / "eontimer" / "EonTimer"
+    return Path(__file__).resolve().parent / "third_party" / "dist"
 
 
 def _find_browser() -> str | None:
