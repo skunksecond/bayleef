@@ -215,7 +215,7 @@ def _create_browser_profile() -> tuple[str, bool]:
 
 def _browser_command(browser: str, url: str, profile_dir: str | None) -> list[str]:
     if Path(browser).name == "surf":
-        return [browser, "-F", "-S", url]
+        return [browser, "-F", "-S", "-N", url]
 
     if profile_dir is None:
         raise ValueError("Epiphany requires an isolated profile directory")

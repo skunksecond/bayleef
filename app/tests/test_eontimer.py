@@ -25,7 +25,7 @@ def test_exit_controls_are_injected_once():
     assert repeated == result
 
 
-def test_surf_command_enables_fullscreen_and_javascript():
+def test_surf_command_enables_fullscreen_javascript_and_inspector():
     command = eontimer._browser_command(
         "/usr/bin/surf",
         "http://127.0.0.1:8000/",
@@ -36,6 +36,7 @@ def test_surf_command_enables_fullscreen_and_javascript():
         "/usr/bin/surf",
         "-F",
         "-S",
+        "-N",
         "http://127.0.0.1:8000/",
     ]
 
