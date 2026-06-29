@@ -192,6 +192,8 @@ def _browser_command(browser: str, url: str, profile_dir: str | None) -> list[st
 def _browser_failure_message(browser: str, return_code: int, stderr: str) -> str:
     lines = [line.strip() for line in stderr.splitlines() if line.strip()]
     detail = lines[-1] if lines else "No error details were reported."
+    with open("crash_details.txt", "w") as file:
+        file.write(detail)
     return f"{Path(browser).name} exited with code {return_code}: {detail}"
 
 
