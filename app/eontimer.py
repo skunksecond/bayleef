@@ -296,7 +296,7 @@ def start_eontimer(exit_callback=None):
 
     if Path(browser).name != "surf":
         _BROWSER_PROFILE, _BROWSER_PROFILE_TEMPORARY = _create_browser_profile()
-    command = _browser_command(browser, "http://127.0.0.1:8000/", _BROWSER_PROFILE)
+    command = _browser_command(browser, "https://127.0.0.1:8000/", _BROWSER_PROFILE)
     popen_options = {
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.PIPE,
