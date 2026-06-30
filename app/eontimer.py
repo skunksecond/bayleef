@@ -1,5 +1,8 @@
+from dataclasses import dataclass, field
+from enum import Enum
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import math
 import os
 from pathlib import Path
 import shutil
@@ -8,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 
 _SERVER = None
 _SERVER_THREAD = None
@@ -17,6 +21,253 @@ _BROWSER_PROFILE_TEMPORARY = False
 _EXIT_CALLBACK = None
 _STOP_REQUESTED = False
 _STATUS_TEXT = "EonTimer idle."
+
+
+# The native timer below is a small, UI-independent port of the calculation
+# layer in third_party/EonTimerpython.  Keeping it here lets Bayleef use the
+# original formulas without importing EonTimer's PySide6 widgets.
+class Console(Enum):
+    GBA = ("GBA", 59.7275)
+    NDS_SLOT1 = ("NDS - Slot 1", 59.8261)
+    NDS_SLOT2 = ("NDS - Slot 2", 59.6555)
+    DSI = ("DSi", 59.8261)
+    THREE_DS = ("3DS", 59.8261)
+
+    def __init__(self, label, fps):
+        self.label = label
+        self.fps = fps
+
+
+class TimerMode(Enum):
+    GEN3_STANDARD = ("Gen 3", "Standard")
+    GEN3_VARIABLE = ("Gen 3", "Variable Target")
+    GEN4 = ("Gen 4", "Standard")
+    GEN5_STANDARD = ("Gen 5", "Standard")
+    GEN5_CGEAR = ("Gen 5", "C-Gear")
+    GEN5_ENTRALINK = ("Gen 5", "Entralink")
+    GEN5_ENTRALINK_PLUS = ("Gen 5", "Entralink+")
+
+    def __init__(self, generation, label):
+        self.generation = generation
+        self.label = label
+
+
+DEFAULT_VALUES = {
+    "pre_timer": 5000,
+    "target_frame": 1000,
+    "gen3_calibration": 0.0,
+    "frame_hit": None,
+    "target_delay": 1200,
+    "target_second": 50,
+    "calibrated_delay": 500,
+    "calibrated_second": 14,
+    "calibration": -95,
+    "entralink_calibration": 256,
+    "target_advances": 100,
+    "frame_calibration": 0.0,
+    "delay_hit": None,
+    "second_hit": None,
+    "advances_hit": None,
+}
+
+
+def _minimum_length(value, minimum=14000):
+    while value < minimum:
+        value += 60000
+    return value
+
+
+@dataclass
+class NativeEonTimer:
+    """EonTimer calculations and monotonic phase playback, without a GUI."""
+
+    console: Console = Console.NDS_SLOT1
+    minimum_length_ms: int = 14000
+    precision_calibration: bool = False
+    action_interval_ms: int = 500
+    action_count: int = 6
+    phases: list[float] = field(default_factory=list)
+    phase_index: int = 0
+    running: bool = False
+    completed: bool = False
+    _phase_started_ns: int = 0
+    _elapsed_before_phase_ms: float = 0.0
+    _fired_actions: set[int] = field(default_factory=set)
+
+    @property
+    def frame_ms(self):
+        return 1000 / self.console.fps
+
+    def to_milliseconds(self, frames):
+        return round(self.frame_ms * frames)
+
+    def to_frames(self, milliseconds):
+        return round(milliseconds / self.frame_ms)
+
+    def calibration_to_ms(self, value):
+        return float(value) if self.precision_calibration else self.to_milliseconds(value)
+
+    def calibration_to_frames(self, value):
+        return round(value) if self.precision_calibration else self.to_frames(value)
+
+    def delay_phases(self, target_delay, target_second, calibration):
+        first = _minimum_length(
+            target_second * 1000 + calibration + 200 - self.to_milliseconds(target_delay),
+            self.minimum_length_ms,
+        )
+        return [first, self.to_milliseconds(target_delay) - calibration]
+
+    def create_phases(self, mode, values):
+        if mode == TimerMode.GEN3_STANDARD:
+            return [
+                values["pre_timer"],
+                self.to_milliseconds(values["target_frame"]) + values["gen3_calibration"],
+            ]
+        if mode == TimerMode.GEN3_VARIABLE:
+            return [values["pre_timer"], math.inf]
+        if mode == TimerMode.GEN4:
+            calibration = self.to_milliseconds(
+                values["calibrated_delay"] - self.to_frames(values["calibrated_second"] * 1000)
+            )
+            return self.delay_phases(values["target_delay"], values["target_second"], calibration)
+
+        calibration = self.calibration_to_ms(values["calibration"])
+        if mode == TimerMode.GEN5_STANDARD:
+            return [_minimum_length(values["target_second"] * 1000 + calibration + 200)]
+
+        phases = self.delay_phases(values["target_delay"], values["target_second"], calibration)
+        if mode in (TimerMode.GEN5_ENTRALINK, TimerMode.GEN5_ENTRALINK_PLUS):
+            phases[0] += 250
+            phases[1] -= self.calibration_to_ms(values["entralink_calibration"])
+        if mode == TimerMode.GEN5_ENTRALINK_PLUS:
+            phases.append(
+                values["target_advances"] / 0.837148929 * 1000
+                + values["frame_calibration"]
+            )
+        return phases
+
+    def calibrate(self, mode, values):
+        updates = {}
+        if mode in (TimerMode.GEN3_STANDARD, TimerMode.GEN3_VARIABLE):
+            if values.get("frame_hit") is not None:
+                offset = self.to_milliseconds(values["target_frame"] - values["frame_hit"])
+                updates["gen3_calibration"] = values["gen3_calibration"] + offset
+            return updates
+
+        if mode == TimerMode.GEN4:
+            if values.get("delay_hit") is not None and values["delay_hit"] > 0:
+                delta = self._delay_calibration(values["target_delay"], values["delay_hit"])
+                updates["calibrated_delay"] = values["calibrated_delay"] + self.to_frames(delta)
+            return updates
+
+        if mode == TimerMode.GEN5_STANDARD and values.get("second_hit") is not None:
+            delta = self._second_calibration(values["target_second"], values["second_hit"])
+            updates["calibration"] = values["calibration"] + self.calibration_to_frames(delta)
+        elif mode == TimerMode.GEN5_CGEAR and values.get("delay_hit") is not None:
+            delta = self._delay_calibration(values["target_delay"], values["delay_hit"])
+            updates["calibration"] = values["calibration"] + self.calibration_to_frames(delta)
+        elif mode in (TimerMode.GEN5_ENTRALINK, TimerMode.GEN5_ENTRALINK_PLUS):
+            if values.get("second_hit") is not None and values["second_hit"] != values["target_second"]:
+                delta = self._second_calibration(values["target_second"], values["second_hit"])
+                updates["calibration"] = values["calibration"] + self.calibration_to_frames(delta)
+            if values.get("delay_hit") is not None and values["delay_hit"] != values["target_delay"]:
+                delta = self._delay_calibration(values["target_delay"], values["delay_hit"])
+                updates["entralink_calibration"] = (
+                    values["entralink_calibration"] + self.calibration_to_frames(delta)
+                )
+            if (
+                mode == TimerMode.GEN5_ENTRALINK_PLUS
+                and values.get("advances_hit") is not None
+                and values["advances_hit"] != values["target_advances"]
+            ):
+                updates["frame_calibration"] = values["frame_calibration"] + (
+                    (values["target_advances"] - values["advances_hit"]) / 0.837148929 * 1000
+                )
+        return updates
+
+    def _delay_calibration(self, target, hit):
+        delta = self.to_milliseconds(hit) - self.to_milliseconds(target)
+        return delta * (0.75 if abs(delta) <= 167 else 1.0)
+
+    @staticmethod
+    def _second_calibration(target, hit):
+        if hit < target:
+            return (target - hit) * 1000 - 500
+        if hit > target:
+            return (target - hit) * 1000 + 500
+        return 0.0
+
+    def start(self, mode, values, now_ns=None):
+        phases = self.create_phases(mode, values)
+        if not phases or any(phase <= 0 for phase in phases):
+            raise ValueError("Timer phases must be greater than zero")
+        self.phases = phases
+        self.phase_index = 0
+        self.running = True
+        self.completed = False
+        self._elapsed_before_phase_ms = 0.0
+        self._phase_started_ns = now_ns if now_ns is not None else time.perf_counter_ns()
+        self._fired_actions.clear()
+
+    def stop(self):
+        self.running = False
+
+    def set_variable_target(self, target_frame, calibration, now_ns=None):
+        if len(self.phases) != 2 or not math.isinf(self.phases[1]):
+            return False
+        self.phases[1] = self.to_milliseconds(target_frame) + calibration
+        if self.phase_index == 1:
+            self._phase_started_ns = now_ns if now_ns is not None else time.perf_counter_ns()
+            self._elapsed_before_phase_ms = 0.0
+            self._fired_actions.clear()
+        return True
+
+    def update(self, now_ns=None):
+        """Advance playback and return the number of newly due action cues."""
+        if not self.running:
+            return 0
+        now_ns = now_ns if now_ns is not None else time.perf_counter_ns()
+        elapsed = self._elapsed_before_phase_ms + (now_ns - self._phase_started_ns) / 1_000_000
+        phase = self.phases[self.phase_index]
+
+        while not math.isinf(phase) and elapsed >= phase:
+            if self.phase_index + 1 >= len(self.phases):
+                self.running = False
+                self.completed = True
+                self._elapsed_before_phase_ms = phase
+                return 1 if 0 not in self._fired_actions else 0
+            elapsed -= phase
+            self.phase_index += 1
+            phase = self.phases[self.phase_index]
+            self._phase_started_ns = now_ns
+            self._elapsed_before_phase_ms = elapsed
+            self._fired_actions.clear()
+
+        due = 0
+        remaining = phase - elapsed
+        if not math.isinf(remaining):
+            for index in range(self.action_count):
+                threshold = self.action_interval_ms * index
+                if remaining <= threshold and index not in self._fired_actions:
+                    self._fired_actions.add(index)
+                    due += 1
+        return due
+
+    def elapsed_ms(self, now_ns=None):
+        if not self.phases:
+            return 0.0
+        if not self.running:
+            return self._elapsed_before_phase_ms
+        now_ns = now_ns if now_ns is not None else time.perf_counter_ns()
+        return self._elapsed_before_phase_ms + (now_ns - self._phase_started_ns) / 1_000_000
+
+    def remaining_ms(self, now_ns=None):
+        if not self.phases:
+            return 0.0
+        phase = self.phases[self.phase_index]
+        if math.isinf(phase):
+            return math.inf
+        return max(0.0, phase - self.elapsed_ms(now_ns))
 
 _EXIT_STYLE = """
 <style id="bayleef-exit-style">

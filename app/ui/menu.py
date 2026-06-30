@@ -3,7 +3,6 @@ import pygame
 from ui.screen import Screen
 from ui.layout import *
 from ui.widgets import Button
-from eontimer import start_eontimer
 from entralinked import start_entralinked
 from ui.set_screen import *
 
@@ -101,9 +100,8 @@ class MainMenu(Screen):
     def _open_eontimer(self):
         print("Opening EonTimer")
         from ui.EonTimerScreen import EonTimerScreen
-        screen = EonTimerScreen()
-        set_screen(screen)
-        start_eontimer(exit_callback=screen._return_to_menu)
+
+        set_screen(EonTimerScreen())
 
     def _open_settings(self):
         print("Opening Settings")
