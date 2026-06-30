@@ -1,6 +1,6 @@
 import math
 from pathlib import Path
-
+import os
 import pygame
 
 from eontimer import Console, DEFAULT_VALUES, NativeEonTimer, TimerMode
@@ -10,6 +10,7 @@ from ui.set_screen import set_screen
 from ui.theme import THEME
 from ui.widgets import Button, TextBox
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 FIELD_LABELS = {
     "pre_timer": "Pre-timer (ms)",
@@ -83,6 +84,13 @@ class EonTimerScreen(Screen):
         self.body_font = pygame.font.SysFont("Consolas", 16)
         self.small_font = pygame.font.SysFont("Consolas", 13)
         self.button_font = pygame.font.SysFont("Consolas", 15, bold=True)
+
+        
+        logo_path = os.path.join(SCRIPT_DIR, "logo", THEME["logo"])
+        self.header_image = None
+        if os.path.exists(logo_path):
+            logo = pygame.image.load(logo_path).convert_alpha()
+            self.header_image = pygame.transform.smoothscale(logo, (162, 50))
 
         self.back_button = Button(
             pygame.Rect(HEADER.right - 130, HEADER.y + 8, 116, 34),
@@ -248,8 +256,12 @@ class EonTimerScreen(Screen):
         if pygame.time.get_ticks() < self.flash_until:
             pygame.draw.rect(surface, highlight, MAIN)
 
-        title = self.title_font.render("EonTimer", True, text_color)
-        surface.blit(title, (HEADER.left + 20, HEADER.top + 11))
+        if self.header_image is not None:
+            surface.blit(self.header_image, (HEADER.left + 14, HEADER.top))
+        else:
+            title = self.header_font.render("Bayleef", True, self.text_color)
+            surface.blit(title, (HEADER.left + 18, HEADER.top + 14))
+        
         self.back_button.draw(surface)
         self.mode_button.draw(surface)
 
